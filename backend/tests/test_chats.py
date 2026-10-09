@@ -1,3 +1,23 @@
+# Copyright (c) Lineaje, Inc. All rights reserved.
+# Lineaje UnifAI guardrail  version=2.0.0-alpha
+# Each enforce() call site below carries a SiteDescriptor with:
+#   site_id            deterministic id for this exact call site (file +
+#                      symbol + insertion point + pattern) — stable across
+#                      re-scans, used to dedupe stub insertions and to look
+#                      up this site's policy mapping at runtime.
+#   candidate_policies policy IDs this site matched during the scan.
+def _lineaje_load_gr_client():
+    """Lineaje-added: load gr_stub_client.py without a pip dependency."""
+    import sys as _s, importlib.util as _ilu
+    from pathlib import Path as _P
+    n = "_lineaje_gr_stub_client"
+    if n in _s.modules: return _s.modules[n]
+    h = _P(__file__).resolve().parent
+    _cand = next((d / "gr_stub_client.py" for d in [h, *h.parents][:8] if (d / "gr_stub_client.py").is_file()), h / "gr_stub_client.py")
+    _spec = _ilu.spec_from_file_location(n, _cand)
+    _s.modules[n] = _m = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_m); return _m
+
 import random
 import string
 
@@ -33,7 +53,17 @@ def test_create_chat_and_talk(client, api_key):
     )
     assert brain_response.status_code == 200
     default_brain_id = brain_response.json()["id"]
-    print("Default brain id: " + default_brain_id)
+    _lineaje_payload = "Default brain id: " + default_brain_id
+    # LINEAJE: enforce() `_lineaje_payload` at agent->log log_emit — scan flagged AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.); AI_APP_SEC_059 (Do not allow prompts that can execute malicious commands at runtime.). Mask/block; do not remove without review. site_id='site:sha256:939c4c576a623d2fb1d9e2516ee4cf00cd0047ad2cdd5447f253cb175c77bd55'
+    _gr_client = _lineaje_load_gr_client()
+    _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:939c4c576a623d2fb1d9e2516ee4cf00cd0047ad2cdd5447f253cb175c77bd55', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+    try:
+        _lineaje_payload = _gr_client.enforce(_gr_site, _lineaje_payload, content_type='application/json')
+    except _gr_client.GuardrailUnavailableError:
+        pass
+    except PermissionError:
+        pass
+    print(_lineaje_payload)
 
     # Create a chat
     response = client.post(
@@ -45,6 +75,15 @@ def test_create_chat_and_talk(client, api_key):
 
     # now talk to the chat with a question
     response_data = response.json()
+    # LINEAJE: enforce() `response_data` at agent->log log_emit — scan flagged AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.); AI_APP_SEC_059 (Do not allow prompts that can execute malicious commands at runtime.). Mask/block; do not remove without review. site_id='site:sha256:dfd84c8f80c89cfb1754edc1008b84bd968dba78ea7c57ba91cb4ddd0977d197'
+    _gr_client = _lineaje_load_gr_client()
+    _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:dfd84c8f80c89cfb1754edc1008b84bd968dba78ea7c57ba91cb4ddd0977d197', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+    try:
+        response_data = _gr_client.enforce(_gr_site, response_data, content_type='application/json')
+    except _gr_client.GuardrailUnavailableError:
+        pass
+    except PermissionError:
+        pass
     print(response_data)
     chat_id = response_data["chat_id"]
     response = client.post(
@@ -69,6 +108,15 @@ def test_create_chat_and_talk(client, api_key):
         },
         headers={"Authorization": "Bearer " + api_key},
     )
+    # LINEAJE: enforce() `response` at agent->log log_emit — scan flagged AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.); AI_APP_SEC_059 (Do not allow prompts that can execute malicious commands at runtime.). Mask/block; do not remove without review. site_id='site:sha256:209f190ed07a26efef2bdf8bb27c46a786f9bac40c07acae3f95b19321d184d9'
+    _gr_client = _lineaje_load_gr_client()
+    _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:209f190ed07a26efef2bdf8bb27c46a786f9bac40c07acae3f95b19321d184d9', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+    try:
+        response = _gr_client.enforce(_gr_site, response, content_type='application/json')
+    except _gr_client.GuardrailUnavailableError:
+        pass
+    except PermissionError:
+        pass
     print(response)
     assert response.status_code == 200
 
@@ -95,6 +143,15 @@ def test_create_chat_and_talk_with_no_brain(client, api_key):
 
     # now talk to the chat with a question
     response_data = response.json()
+    # LINEAJE: enforce() `response_data` at agent->log log_emit — scan flagged AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.); AI_APP_SEC_059 (Do not allow prompts that can execute malicious commands at runtime.). Mask/block; do not remove without review. site_id='site:sha256:5b7539290110c690b563cebf0e36cd8d09a6aaa21ed10ee57f18606d8fb95ab3'
+    _gr_client = _lineaje_load_gr_client()
+    _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:5b7539290110c690b563cebf0e36cd8d09a6aaa21ed10ee57f18606d8fb95ab3', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+    try:
+        response_data = _gr_client.enforce(_gr_site, response_data, content_type='application/json')
+    except _gr_client.GuardrailUnavailableError:
+        pass
+    except PermissionError:
+        pass
     print(response_data)
     chat_id = response_data["chat_id"]
     response = client.post(
