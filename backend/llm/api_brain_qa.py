@@ -1,3 +1,23 @@
+# Copyright (c) Lineaje, Inc. All rights reserved.
+# Lineaje UnifAI guardrail  version=2.0.0-alpha
+# Each enforce() call site below carries a SiteDescriptor with:
+#   site_id            deterministic id for this exact call site (file +
+#                      symbol + insertion point + pattern) — stable across
+#                      re-scans, used to dedupe stub insertions and to look
+#                      up this site's policy mapping at runtime.
+#   candidate_policies policy IDs this site matched during the scan.
+def _lineaje_load_gr_client():
+    """Lineaje-added: load gr_stub_client.py without a pip dependency."""
+    import sys as _s, importlib.util as _ilu
+    from pathlib import Path as _P
+    n = "_lineaje_gr_stub_client"
+    if n in _s.modules: return _s.modules[n]
+    h = _P(__file__).resolve().parent
+    _cand = next((d / "gr_stub_client.py" for d in [h, *h.parents][:8] if (d / "gr_stub_client.py").is_file()), h / "gr_stub_client.py")
+    _spec = _ilu.spec_from_file_location(n, _cand)
+    _s.modules[n] = _m = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_m); return _m
+
 import json
 from typing import Optional
 from uuid import UUID
@@ -197,7 +217,15 @@ class APIBrainQA(
         ):
             streamed_chat_history.assistant = value
             response_tokens.append(value)
-            yield f"data: {json.dumps(streamed_chat_history.dict())}"
+            _lineaje_payload = streamed_chat_history.dict()
+            # LINEAJE: enforce() `_lineaje_payload` at agent->external data_egress — scan flagged AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.); AI_APP_SEC_059 (Do not allow prompts that can execute malicious commands at runtime.). Mask/block; do not remove without review. site_id='site:sha256:875e8ecd9f9eafeb929ff36d6070993ffc1fb761e929932c7c40f4a7c302ecff'
+            _gr_client = _lineaje_load_gr_client()
+            _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:875e8ecd9f9eafeb929ff36d6070993ffc1fb761e929932c7c40f4a7c302ecff', phase='data_egress', boundary={'source': 'agent_message', 'sink': 'external_endpoint'}, candidate_policies=[], fail_mode='ALLOW_WITH_AUDIT', source_type='agent', destination_type='external')
+            try:
+                _lineaje_payload = await __import__('asyncio').to_thread(lambda: _gr_client.enforce(_gr_site, _lineaje_payload, content_type='application/json', variable_name='_lineaje_payload', source_file=__file__, before_line=200))
+            except _gr_client.GuardrailUnavailableError:
+                pass
+            yield f"data: {json.dumps(_lineaje_payload)}"
         response_tokens = [
             token
             for token in response_tokens
