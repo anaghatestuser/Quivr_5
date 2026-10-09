@@ -1,3 +1,23 @@
+# Copyright (c) Lineaje, Inc. All rights reserved.
+# Lineaje UnifAI guardrail  version=2.0.0-alpha
+# Each enforce() call site below carries a SiteDescriptor with:
+#   site_id            deterministic id for this exact call site (file +
+#                      symbol + insertion point + pattern) — stable across
+#                      re-scans, used to dedupe stub insertions and to look
+#                      up this site's policy mapping at runtime.
+#   candidate_policies policy IDs this site matched during the scan.
+def _lineaje_load_gr_client():
+    """Lineaje-added: load gr_stub_client.py without a pip dependency."""
+    import sys as _s, importlib.util as _ilu
+    from pathlib import Path as _P
+    n = "_lineaje_gr_stub_client"
+    if n in _s.modules: return _s.modules[n]
+    h = _P(__file__).resolve().parent
+    _cand = next((d / "gr_stub_client.py" for d in [h, *h.parents][:8] if (d / "gr_stub_client.py").is_file()), h / "gr_stub_client.py")
+    _spec = _ilu.spec_from_file_location(n, _cand)
+    _s.modules[n] = _m = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_m); return _m
+
 import asyncio
 import json
 from typing import AsyncIterable, Awaitable, List, Optional
@@ -42,6 +62,15 @@ class HeadlessQA(BaseModel):
 
     def _determine_streaming(self, streaming: bool) -> bool:
         """If the model name allows for streaming and streaming is declared, set streaming to True."""
+        # LINEAJE: enforce() `streaming` at agent->user_interface data_egress — scan flagged AI_APP_SEC_001 (Do not allow malicious content via hidden prompts); AI_APP_SEC_002 (Do not allow malicious content via encoded prompts); AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.). Mask/block; do not remove without review. site_id='site:sha256:a63e98b8fd59303fd96dd77487960064cf5ff37695fb490fbdf9d36217248b96'
+        _gr_client = _lineaje_load_gr_client()
+        _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:a63e98b8fd59303fd96dd77487960064cf5ff37695fb490fbdf9d36217248b96', phase='data_egress', boundary={'source': 'agent_message', 'sink': 'user_interface'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_012', 'guardrail_id': 'Mask PII on UI', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='user_interface')
+        try:
+            streaming = _gr_client.enforce(_gr_site, streaming, content_type='text/plain')
+        except _gr_client.GuardrailUnavailableError:
+            pass
+        except PermissionError:
+            pass
         return streaming
 
     def _determine_callback_array(
@@ -99,6 +128,15 @@ class HeadlessQA(BaseModel):
             HumanMessagePromptTemplate.from_template("{question}"),
         ]
         CHAT_PROMPT = ChatPromptTemplate.from_messages(messages)
+        # LINEAJE: enforce() `CHAT_PROMPT` at agent->user_interface data_egress — scan flagged AI_APP_SEC_001 (Do not allow malicious content via hidden prompts); AI_APP_SEC_002 (Do not allow malicious content via encoded prompts); AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.). Mask/block; do not remove without review. site_id='site:sha256:b5770bb380872c0099cca9cce8d813122f7fd223cb9dfa090a2e27eaacb30daa'
+        _gr_client = _lineaje_load_gr_client()
+        _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:b5770bb380872c0099cca9cce8d813122f7fd223cb9dfa090a2e27eaacb30daa', phase='data_egress', boundary={'source': 'agent_message', 'sink': 'user_interface'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_012', 'guardrail_id': 'Mask PII on UI', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='user_interface')
+        try:
+            CHAT_PROMPT = _gr_client.enforce(_gr_site, CHAT_PROMPT, content_type='text/plain')
+        except _gr_client.GuardrailUnavailableError:
+            pass
+        except PermissionError:
+            pass
         return CHAT_PROMPT
 
     def generate_answer(
@@ -175,7 +213,17 @@ class HeadlessQA(BaseModel):
             try:
                 await fn
             except Exception as e:
-                logger.error(f"Caught exception: {e}")
+                _lineaje_payload = f"Caught exception: {e}"
+                # LINEAJE: enforce() `_lineaje_payload` at agent->log log_emit — scan flagged AI_APP_SEC_001 (Do not allow malicious content via hidden prompts); AI_APP_SEC_002 (Do not allow malicious content via encoded prompts); AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.). Mask/block; do not remove without review. site_id='site:sha256:24cdc634871facd68362f3377bdd5a9002a959cf8c8d4b0f66b0fc7add81f92a'
+                _gr_client = _lineaje_load_gr_client()
+                _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:24cdc634871facd68362f3377bdd5a9002a959cf8c8d4b0f66b0fc7add81f92a', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+                try:
+                    _lineaje_payload = await __import__('asyncio').to_thread(lambda: _gr_client.enforce(_gr_site, _lineaje_payload, content_type='application/json'))
+                except _gr_client.GuardrailUnavailableError:
+                    pass
+                except PermissionError:
+                    pass
+                logger.error(_lineaje_payload)
             finally:
                 event.set()
 
@@ -213,10 +261,27 @@ class HeadlessQA(BaseModel):
         )
 
         async for token in callback.aiter():
+            # LINEAJE: enforce() `token` at agent->log log_emit — scan flagged AI_APP_SEC_001 (Do not allow malicious content via hidden prompts); AI_APP_SEC_002 (Do not allow malicious content via encoded prompts); AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.). Mask/block; do not remove without review. site_id='site:sha256:197c95f9bcbe5d09342409b164114fad8ca8c6f77f894c3434ada69cd865f1d0'
+            _gr_client = _lineaje_load_gr_client()
+            _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:197c95f9bcbe5d09342409b164114fad8ca8c6f77f894c3434ada69cd865f1d0', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+            try:
+                token = await __import__('asyncio').to_thread(lambda: _gr_client.enforce(_gr_site, token, content_type='application/json'))
+            except _gr_client.GuardrailUnavailableError:
+                pass
+            except PermissionError:
+                pass
             logger.info("Token: %s", token)
             response_tokens.append(token)
             streamed_chat_history.assistant = token
-            yield f"data: {json.dumps(streamed_chat_history.dict())}"
+            _lineaje_payload = streamed_chat_history.dict()
+            # LINEAJE: enforce() `_lineaje_payload` at agent->external data_egress — scan flagged AI_APP_SEC_001 (Do not allow malicious content via hidden prompts); AI_APP_SEC_002 (Do not allow malicious content via encoded prompts); AI_APP_SEC_029 (Agent must validate, sanitize LLM output including for presence of eval or any dynamic code execution primitive in LLM output.). Mask/block; do not remove without review. site_id='site:sha256:ddbe3e84b4c0913858c42e90a4ae89270c378790ba090ba1ca4a1bdcecadf897'
+            _gr_client = _lineaje_load_gr_client()
+            _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:ddbe3e84b4c0913858c42e90a4ae89270c378790ba090ba1ca4a1bdcecadf897', phase='data_egress', boundary={'source': 'agent_message', 'sink': 'external_endpoint'}, candidate_policies=[], fail_mode='ALLOW_WITH_AUDIT', source_type='agent', destination_type='external')
+            try:
+                _lineaje_payload = await __import__('asyncio').to_thread(lambda: _gr_client.enforce(_gr_site, _lineaje_payload, content_type='application/json', variable_name='_lineaje_payload', source_file=__file__, before_line=219))
+            except _gr_client.GuardrailUnavailableError:
+                pass
+            yield f"data: {json.dumps(_lineaje_payload)}"
 
         await run
         assistant = "".join(response_tokens)
